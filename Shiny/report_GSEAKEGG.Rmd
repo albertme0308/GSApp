@@ -1,0 +1,122 @@
+---
+title: "GSEA-KEGG ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **GSEA-KEGG**: Gene Set Enrichment Analysis with annotation KEGG.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Ranking variable: **`r input$parametro`**.<br>
+
+Gene list selected for the analysis (10 first elements):
+```{r}
+head(genes_gsea(), 10)
+paste("Gene list has a total of", length(genes_gsea()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+minGSSize: **`r input$minGSSize5`**.<br>
+maxGSSize: **`r input$maxGSSize5`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod5`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue5)`**.<br>
+eps: **`r as.numeric(input$eps5)`**.<br>
+by: **`r input$by5`**.<br>
+
+
+## ANALYSIS RESULTS
+Table GSEA-KEGG analysis (10 first categories):
+
+```{r}
+head(gseakegg_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(gseakegg_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(gsea_kegg())
+```
+
+**Dotplot:**
+
+Differential expression: **`r input$expresion5`**.<br>
+```{r}
+if (input$expresion5=="Global"){
+        dotplot(gsea_kegg(), showCategory = input$showcat_dotplot5, font.size=input$fontsize_dotplot5)
+      }else if (input$expresion5=="Differential"){
+        dotplot(gsea_kegg(), showCategory = input$showcat_dotplot5, font.size=input$fontsize_dotplot5, split=".sign") + facet_grid(.~.sign)
+      }
+```
+
+**Enrichment Map:**
+
+Color variable: **`r input$color_enmap5`**.<br>
+```{r}
+gsea_kegg_sim5<-pairwise_termsim(gsea_kegg())
+emapplot(gsea_kegg_sim5, showCategory = input$showcat_enmap5, color=input$color_enmap5, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**Category Netplot:**
+
+```{r}
+cnetplot(gsea_kegg(), showCategory = input$showcat_cnetplot5, color.params =list(foldChange =genes_gsea()))
+```
+
+**Ridgeplot:**
+
+Color variable: **`r input$fill_ridgeplot5`**.<br>
+```{r}
+ridgeplot(gsea_kegg(), showCategory = input$showcat_ridgeplot5, label_format = input$label_format_ridgeplot5, fill=input$fill_ridgeplot5)+labs(x="enrichment distribution")
+```
+
+**GSEA plot:**
+
+```{r}
+gseaplot(gsea_kegg(), by="all", title=gsea_kegg()@result$Description[input$gseakegg_num5], geneSetID = input$gseakegg_num5)
+```
+
+**Pathway**<br>
+Select the pathway in the application and browse it on the KEGG website.
+
+**Tree plot:**
+
+Color category: **`r input$color_tp5`**.<br>
+Clustering method: **`r input$method_tp5`**.<br>
+```{r}
+gsea_kegg_sim_tp5<-pairwise_termsim(gsea_kegg())
+treeplot(gsea_kegg_sim_tp5, showCategory = input$showcat_tp5, color=input$color_tp5, cluster.params=list(method=input$method_tp5))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

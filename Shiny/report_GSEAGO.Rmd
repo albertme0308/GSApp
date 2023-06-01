@@ -1,0 +1,125 @@
+---
+title: "GSEA-GO ANALYSIS"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **GSEA-GO**: Gene Set Enrichment Analysis with annotation Gene-Ontology.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Ranking variable: **`r input$parametro`**.<br>
+
+Gene list selected for the analysis (10 first elements):
+```{r}
+head(genes_gsea(), 10)
+paste("Gene list has a total of", length(genes_gsea()), "elements")
+```
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+ont: **`r input$ont4`**.<br>
+minGSSize: **`r input$minGSSize4`**.<br>
+maxGSSize: **`r input$maxGSSize4`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod4`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue4)`**.<br>
+eps: **`r as.numeric(input$eps4)`**.<br>
+by: **`r input$by4`**.<br>
+A method is used to reduce redundancy?: **`r input$simplify4`**.<br>
+
+
+## ANALYSIS RESULTS
+Table GSEA-GO analysis (10 first categories):
+
+```{r}
+head(gseago_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(gseago_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(gsea_go())
+```
+
+**Dotplot:**
+
+Differential expression: **`r input$expresion4`**.<br>
+```{r}
+if (input$expresion4=="Global"){
+      dotplot(gsea_go(), showCategory = input$showcat_dotplot4, font.size=input$fontsize_dotplot4)
+    }else if (input$expresion4=="Differential"){
+        dotplot(gsea_go(), showCategory = input$showcat_dotplot4, font.size=input$fontsize_dotplot4, split=".sign") + facet_grid(.~.sign)}
+```
+
+**Enrichment Map:**
+
+Color variable: **`r input$color_enmap4`**.<br>
+```{r}
+gsea_go_sim4<-pairwise_termsim(gsea_go())
+emapplot(gsea_go_sim4, showCategory = input$showcat_enmap4, color=input$color_enmap4, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**GO plot:**
+
+```{r}
+goplot(gsea_go(), showCategory = input$showcat_goplot4)
+```
+
+**Category Netplot:**
+
+```{r}
+cnetplot(gsea_go(), showCategory = input$showcat_cnetplot4, color.params =list(foldChange =genes_gsea()))
+```
+
+**Ridgeplot:**
+
+Color variable: **`r input$fill_ridgeplot4`**.<br>
+```{r}
+ridgeplot(gsea_go(), showCategory = input$showcat_ridgeplot4, label_format = input$label_format_ridgeplot4, fill=input$fill_ridgeplot4)+labs(x="enrichment distribution")
+```
+
+**GSEA plot:**
+
+```{r}
+gseaplot(gsea_go(), by="all", title=gsea_go()@result$Description[input$gseago_num4], geneSetID = input$gseago_num4)
+```
+
+**Tree plot:**
+
+Color variable: **`r input$color_tp4`**.<br>
+Clustering method: **`r input$method_tp4`**.<br>
+```{r}
+gsea_go_sim_tp4<-pairwise_termsim(gsea_go())
+treeplot(gsea_go_sim_tp4, showCategory = input$showcat_tp4, color=input$color_tp4, cluster.params=list(method=input$method_tp4))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

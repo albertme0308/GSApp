@@ -1,0 +1,124 @@
+---
+title: "GSEA-REACTOME ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **GSEA-REACTOME**: Gene Set Enrichment Analysis with annotation Reactome.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Ranking variable: **`r input$parametro`**.<br>
+
+Gene list selected for the analysis (10 first elements):
+```{r}
+head(genes_gsea(), 10)
+paste("ne list has a total of", length(genes_gsea()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+minGSSize: **`r input$minGSSize6`**.<br>
+maxGSSize: **`r input$maxGSSize6`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod6`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue6)`**.<br>
+eps: **`r as.numeric(input$eps6)`**.<br>
+by: **`r input$by6`**.<br>
+
+
+## ANALYSIS RESULTS
+Table GSEA-REACTOME analysis (10 first categories):
+```{r}
+head(gseareactome_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(gseareactome_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(gsea_reactome())
+```
+
+**Dotplot:**
+
+Differential expression: **`r input$expresion6`**.<br>
+```{r}
+if (input$expresion6=="Global"){
+        dotplot(gsea_reactome(), showCategory = input$showcat_dotplot6, font.size=input$fontsize_dotplot6)
+      }else if (input$expresion6=="Differential"){
+        dotplot(gsea_reactome(), showCategory = input$showcat_dotplot6, font.size=input$fontsize_dotplot6, split=".sign") + facet_grid(.~.sign)
+      }
+```
+
+**Enrichment Map:**
+
+Color variable: **`r input$color_enmap6`**.<br>
+```{r}
+gsea_reactome_sim6<-pairwise_termsim(gsea_reactome())
+emapplot(gsea_reactome_sim6, showCategory = input$showcat_enmap6, color=input$color_enmap6, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**Category Netplot:**
+
+```{r}
+cnetplot(gsea_reactome(), showCategory = input$showcat_cnetplot6, color.params =list(foldChange =genes_gsea()))
+```
+
+**Ridgeplot:**
+
+Color variable: **`r input$fill_ridgeplot6`**.<br>
+```{r}
+ridgeplot(gsea_reactome(), showCategory = input$showcat_ridgeplot6, label_format = input$label_format_ridgeplot6, fill=input$fill_ridgeplot6)+labs(x="enrichment distribution")
+```
+
+**GSEA plot:**
+
+```{r}
+gseaplot(gsea_reactome(), by="all", title=gsea_reactome()@result$Description[input$gseareactome_num6], geneSetID = input$gseareactome_num6)
+```
+
+**Category Pathway:**
+
+```{r}
+viewPathway(gsea_reactome()@result$Description[input$pathway_num6], readable=TRUE)
+```
+
+**Tree plot:**
+
+Color variable: **`r input$color_tp6`**.<br>
+Clustering method: **`r input$method_tp6`**.<br>
+```{r}
+gsea_reactome_sim_tp6<-pairwise_termsim(gsea_reactome())
+treeplot(gsea_reactome_sim_tp6, showCategory = input$showcat_tp6, color=input$color_tp6, cluster.params=list(method=input$method_tp6))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

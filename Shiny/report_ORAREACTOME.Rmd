@@ -1,0 +1,122 @@
+---
+title: "ORA-REACTOME ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **ORA-REACTOME**: Over Representation Analysis with annotation Reactome.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Universe o Background: **`r input$universo1`**.<br>
+Selected subset of genes: **`r input$genes1`**.<br>
+Data related to gene subsetting:
+```{r}
+if(input$genes1=="Filter Toptable"){
+  mensaje <- paste0("adj.P.Val <", as.numeric(input$adjpval1), 
+                    ", logFC >", input$logFC1, 
+                    ", Expression:", input$regulacion1)
+  print(mensaje)
+}else{print("Does not apply")}
+```
+
+Subset of genes selected for the analysis (10 first elements):
+```{r}
+head(genes(), 10)
+paste("The subset of genes has a total of", length(genes()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+minGSSize: **`r input$minGSSize3`**.<br>
+maxGSSize: **`r input$maxGSSize3`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod3`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue3)`**.<br>
+qvalueCutoff: **`r as.numeric(input$qvalue3)`**.<br>
+
+
+## ANALYSIS RESULTS
+Table ORA-REACTOME analysis (10 first categories):
+
+```{r}
+head(orareactome_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(orareactome_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(ora_reactome())
+```
+
+**Dotplot:**
+
+```{r}
+dotplot(ora_reactome(), showCategory = input$showcat_dotplot3, font.size=input$fontsize_dotplot3)
+```
+
+**Barplot:**
+
+```{r}
+barplot(ora_reactome(), showCategory = input$showcat_barplot3, font.size=input$fontsize_barplot3)
+```
+
+**Enrichment Map:**
+
+Color variable: **`r input$color_enmap3`**.<br>
+```{r}
+ora_reactome_sim3<-pairwise_termsim(ora_reactome())
+emapplot(ora_reactome_sim3, showCategory = input$showcat_enmap3, color=input$color_enmap3, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**Category Netplot:**
+
+```{r}
+ cnetplot(ora_reactome(), showCategory = input$showcat_cnetplot3, color.params =list(foldChange =genes()))
+```
+
+**Category Pathway:**
+
+```{r}
+viewPathway(ora_reactome()@result$Description[input$pathway_num3], readable=TRUE)
+```
+
+**Tree plot:**
+
+Color variable: **`r input$color_tp3`**.<br>
+Clustering method: **`r input$method_tp3`**.<br>
+```{r}
+ora_reactome_sim_tp3<-pairwise_termsim(ora_reactome())
+treeplot(ora_reactome_sim_tp3, showCategory = input$showcat_tp3, color=input$color_tp3, cluster.params=list(method=input$method_tp3))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

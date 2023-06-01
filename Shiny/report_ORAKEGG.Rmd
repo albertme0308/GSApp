@@ -1,0 +1,119 @@
+---
+title: "ORA-KEGG ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **ORA-KEGG**: Over Representation Analysis with annotation KEGG.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Universe o Background: **`r input$universo1`**.<br>
+Selected subset of genes: **`r input$genes1`**.<br>
+Data related to gene subsetting:
+```{r}
+if(input$genes1=="Filter Toptable"){
+  mensaje <- paste0("adj.P.Val <", as.numeric(input$adjpval1), 
+                    ", logFC >", input$logFC1, 
+                    ", Expression:", input$regulacion1)
+  print(mensaje)
+}else{print("Does not apply")}
+```
+
+Subset of genes selected for the analysis (10 first elements):
+```{r}
+head(genes(), 10)
+paste("The subset of genes has a total of", length(genes()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+minGSSize: **`r input$minGSSize2`**.<br>
+maxGSSize: **`r input$maxGSSize2`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod2`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue2)`**.<br>
+qvalueCutoff: **`r as.numeric(input$qvalue2)`**.<br>
+
+
+## ANALYSIS RESULTS
+Table ORA-KEGG analysis (10 first categories):
+
+```{r}
+head(orakegg_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(orakegg_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(ora_kegg())
+```
+
+**Dotplot:**
+
+```{r}
+dotplot(ora_kegg(), showCategory = input$showcat_dotplot2, font.size=input$fontsize_dotplot2)
+```
+
+**Barplot:**
+
+```{r}
+barplot(ora_kegg(), showCategory = input$showcat_barplot2, font.size=input$fontsize_barplot2)
+```
+
+**Enrichment Map:**
+
+Color category: **`r input$color_enmap2`**.<br>
+```{r}
+ora_kegg_sim2<-pairwise_termsim(ora_kegg())
+emapplot(ora_kegg_sim2, showCategory = input$showcat_enmap2, color=input$color_enmap2, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**Category Netplot:**
+
+```{r}
+cnetplot(ora_kegg(), showCategory = input$showcat_cnetplot2, color.params =list(foldChange =genes()))
+```
+
+**Pathway**<br>
+Select the pathway in the application and browse it on the KEGG website.
+
+**Tree plot:**
+
+Color category: **`r input$color_tp2`**.<br>
+Clustering method: **`r input$method_tp2`**.<br>
+```{r}
+ora_kegg_sim_tp2<-pairwise_termsim(ora_kegg())
+treeplot(ora_kegg_sim_tp2, showCategory = input$showcat_tp2, color=input$color_tp2, cluster.params=list(method=input$method_tp2))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

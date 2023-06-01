@@ -1,0 +1,81 @@
+---
+title: "SPIA ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **SPIA**: Signaling-Pathway Impact Analysis with annotation KEGG.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Universe o Background: **`r input$referencia7`**.<br>
+Selected subset of genes: **`r input$genes7`**.<br>
+Data related to gene subsetting:
+```{r}
+if(input$genes7=="Filter Toptable"){
+  mensaje <- paste0("adj.P.Val <", as.numeric(input$adjpval7), 
+                    ", logFC >", input$logFC7, 
+                    ", Expression:", input$regulacion7)
+  print(mensaje)
+}else{print("Does not apply")}
+```
+
+Subset of genes selected for the analysis (10 first elements):
+```{r}
+head(genes_spia(), 10)
+paste("The subset of genes has a total of", length(genes_spia()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+nB: **`r input$nB7`**.<br>
+
+
+## ANALYSIS RESULTS
+Table SPIA analysis (10 first categories):
+
+```{r}
+head(spia_results()[,1:12], 10)
+paste("The number of categories obtained in the analysis is", nrow(spia_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**PlotP:**
+
+Threshold: **`r input$threshold7`**.<br>
+```{r}
+plotP2(spia_kegg(), threshold=input$threshold7)
+```
+
+**Pathway SPIA**<br>
+Select the pathway in the application and browse it on the KEGG website.
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```

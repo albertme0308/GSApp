@@ -1,0 +1,124 @@
+---
+title: "ORA-GO ANALYSIS REPORT"
+date: "`r format(Sys.time(), '%d %B %Y %H:%M:%S')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## INTRODUCTION
+The following report summarizes the pathway analysis performed in the application [GSApp](https://github.com/albertme0308/GSApp).<br>
+Pathway analysis method **ORA-GO**: Over Representation Analysis with annotation Gene-Ontology.<br>
+
+
+## DATA LOADED
+Below are the initial data description.<br>
+The name of the loaded file is: **`r nombre_archivo()`**.<br>
+Selected organism: **`r input$organismo`**.<br>
+Gene ID: **`r input$identificador`**.<br>
+Universe o Background: **`r input$universo1`**.<br>
+Selected subset of genes: **`r input$genes1`**.<br>
+Data related to gene subsetting:
+```{r}
+if(input$genes1=="Filter Toptable"){
+  mensaje <- paste0("adj.P.Val <", as.numeric(input$adjpval1), 
+                    ", logFC >", input$logFC1, 
+                    ", Expression:", input$regulacion1)
+  print(mensaje)
+}else{print("Does not apply")}
+```
+
+Subset of genes selected for the analysis (10 first elements):
+```{r}
+head(genes(), 10)
+paste("The subset of genes has a total of", length(genes()), "elements")
+```
+
+
+## ANALYSIS CONFIGURATION
+The selected parameters for the analysis are described below.<br>
+ont: **`r input$ont1`**.<br>
+minGSSize: **`r input$minGSSize1`**.<br>
+maxGSSize: **`r input$maxGSSize1`**.<br>
+pAdjustMethod: **`r input$pAdjustMethod1`**.<br>
+pvalueCutoff: **`r as.numeric(input$pvalue1)`**.<br>
+qvalueCutoff: **`r as.numeric(input$qvalue1)`**.<br>
+A method is used to reduce redundancy?: **`r input$simplify1`**.<br>
+
+
+## ANALYSIS RESULTS
+Table ORA-GO analysis (10 first categories):
+
+```{r}
+head(orago_results()[,2:7], 10)
+paste("The number of categories obtained in the analysis is", nrow(orago_results()))
+```
+
+
+## RESULTS VISUALIZATION
+
+**Upsetplot:**
+
+```{r}
+upsetplot(ora_go())
+```
+
+**Dotplot:**
+
+```{r}
+dotplot(ora_go(), showCategory = input$showcat_dotplot1, font.size=input$fontsize_dotplot1)
+```
+
+**Barplot:**
+
+```{r}
+barplot(ora_go(), showCategory = input$showcat_barplot1, font.size=input$fontsize_barplot1)
+```
+
+**Enrichment Map:**
+
+Color variable: **`r input$color_enmap1`**.<br>
+```{r}
+ora_go_sim1<-pairwise_termsim(ora_go())
+emapplot(ora_go_sim1, showCategory = input$showcat_enmap1, color=input$color_enmap1, cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+**GO plot:**
+
+```{r}
+goplot(ora_go(), showCategory = input$showcat_goplot1)
+```
+
+**Category Netplot:**
+
+```{r}
+cnetplot(ora_go(), showCategory = input$showcat_cnetplot1, color.params =list(foldChange =genes()))
+```
+
+**Tree plot:**
+
+Color variable: **`r input$color_tp1`**.<br>
+Clustering method: **`r input$method_tp1`**.<br>
+```{r}
+ora_go_sim_tp1<-pairwise_termsim(ora_go())
+treeplot(ora_go_sim_tp1, showCategory = input$showcat_tp1, color=input$color_tp1, cluster.params=list(method=input$method_tp1))
+```
+
+
+## VERSIONS
+
+Versions of the packages used in the analysis:
+```{r }
+paste("clusterProfiler", packageVersion("clusterProfiler"))
+paste("enrichplot", packageVersion("enrichplot"))
+paste("ReactomePA", packageVersion("ReactomePA"))
+paste("ggplot2", packageVersion("ggplot2"))
+paste("DOSE", packageVersion("DOSE"))
+paste("pathview", packageVersion("pathview"))
+paste("SPIA", packageVersion("SPIA"))
+paste("org.Mm.eg.db", packageVersion("org.Mm.eg.db"))
+paste("org.Hs.eg.db", packageVersion("org.Hs.eg.db"))
+paste("org.Rn.eg.db", packageVersion("org.Rn.eg.db"))
+```
