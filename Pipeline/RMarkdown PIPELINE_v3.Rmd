@@ -1,0 +1,941 @@
+---
+title: "<br> <br> <br> Análisis de Significación Biológica (v.3)"
+author: "Alberto Montes"
+date: "22 de Abril de 2023"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: 
+      collapsed: true
+      smooth_scroll: true
+    number_sections: true
+    highlight: textmate
+editor_options: 
+  chunk_output_type: console
+toc_float: true
+---
+  
+```{r setup, include=FALSE}
+require(knitr)
+# include this code chunk as-is to set options
+opts_chunk$set(comment = NA, prompt = TRUE, tidy = FALSE, 
+               fig.width = 7, fig.height = 7,echo = TRUE, 
+               message = FALSE, warning = FALSE, cache=TRUE)
+Sys.setlocale("LC_TIME", "C")
+```
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri( "logo_uoc_petit.png"), 
+               alt = 'logo UOC', 
+               style = 'position:absolute; top:0; right:0; padding:10px;')
+htmltools::img(src = knitr::image_uri( "logo_ub_petit.png"), 
+               alt = 'logo UB', 
+               style = 'position:absolute; top:0; left:0; padding:10px;')
+```
+
+# OBJETIVO
+
+El objetivo de este informe es presentar un protocolo en R, utilizando el paquete clusterProfiler de Bioconductor, para realizar el análisis de significación biológica de una lista de genes. Este protocolo se utilizará como referencia para el desarrollo de la aplicación Shiny objeto del TFM.
+
+
+
+
+# INTRODUCCIÓN
+El análisis de significación biologica permite identificar aquellos procesos biológicos, como por ejemplo características funcionales, vías metabólicas o cascadas de transducción de señales, que están relacionados con los datos contenidos de la lista de genes de partida. El análisis se puede dividir en tres etapas principales:
+
+1. Anotación (de la lista de genes).
+2. Análisis de enriquecimiento (de conjuntos de genes)
+3. Visualización (de los resultados)
+
+
+## Anotación
+
+Las anotaciones contenidas en bases de datos como [GO](http://www.geneontology.org), [KEGG](http://www.genome.jp/kegg) o [Reactome](https://reactome.org/) permiten relacionar conjuntos de genes que trabajan coordinadamente en determinados procesos biológicos, asignándolos a ciertas categorías o términos. A pesar de que existen numerosas bases de datos para realizar este proceso, las que se acaban de citar suelen ser las primeras opciones a la hora de realizar estos análisis debido a su larga tradición, actualización y diversidad de especies disponibles.
+
+* GO: El proyecto *Gene Ontology* es una iniciativa bioinformática que tiene como objetivo estandarizar la representación de los genes y los atributos de sus productos génicos de todas las especies. Los términos indicados están relacionados unos con otros de manera jerárquica, desde términos más generales hacia términos más específicos. Las anotaciones incluyen información sobre Proceso biológico (BP): eventos celulares a los que contribuye el producto génico, Función molecular (MF): descripción bioquímica del producto génico y Componente celular (CC): localización o complejos de los que forma parte el gen o su producto génico.
+
+* KEGG: La *Kyoto Encyclopedia of Genes and Genomes* es un conjunto de base de datos diseñadas para facilitar la comprensión de sistemas biológicos (células, organismos o ecosistemas) a nivel molecular. Su base de datos más conocida es KEGG PATHWAY, una colección de mapas de procesos bioquímicos que representan interacciones moleculares, reacciones metabólicas, procesos celulares y relacionados con enfermedades, entre otros.
+
+* Reactome: *Reactome* es una base de datos de reacciones, vías y procesos biológicos, disponible en línea y de código abierto. El modelo de datos de Reactome considera las reacciones entre ácidos nucleicos, proteínas, complejos y moléculas pequeñas, formando una red de interacciones biológicas que se agrupan en categorías. Los ejemplos de rutas biológicas en Reactome incluyen vías de señalización, regulación transcripcional, traducción, apoptosis y metabolismo, entre otras.
+
+
+## Análisis de enriquecimiento
+
+Una vez hemos asignado los genes de nuestra lista a ciertas categorías, debemos analizar cuáles de estas anotaciones están relacionadas con el problema que se está estudiando o bien aparecen por azar entre las muchas anotaciones de los genes de la lista. Actualmente existen numerosos métodos destinados a realizar este análisis. En general, los métodos más utilizados se basan en el análisis de enriquecimiento, en el que se establece si una determinada categoría aparece más o menos a menudo en la lista de genes seleccionados respecto a una población (universo génico) de referencia. De manera simple, se considera que si una categoría aparece más a menudo en nuestra lista que en la de referencia es probable que sea relevante para explicar las diferencias observadas.<br>
+
+La nomenclatura y clasificación de los métodos de análisis propuesto por los expertos en la materia es diversa. De acuerdo a la utilizada por *Khatri et al.*, se agrupan los métodos de análisis en diferentes generaciones, distinguiendo los de primera generación (*ORA: Over Representation Analysis*), segunda generación (*FCS: Functional Class Analysis*) y tercera generación (*PT: Pathway Topology*). Los métodos ORA y FCS consideran únicamente el número de genes correspondientes a un proceso biológico determinado, mientras que los métodos PT tienen en cuenta la información adicional relacionada con cómo y dónde los genes pueden interaccionar entre ellos. Relacionado con esta distinción, existen otras clasificaciones propuestas, como la de *Geistlinger* en la que se distinguen dos grandes grupos de métodos basados en el análisis de enriquecimiento: *Set-based enrichment analysis*, en el que no se considera la posible interacción entre genes, y el *Network-based enrichment analysis*, en el que se consideran las anotaciones relacionadas con estas interacciones.<br>
+
+A pesar de que los métodos de última generación (*Pathway Topology* o *Network-based enrichment analysis*) parecen aproximar mejor la realidad de los procesos biológicos, existen numerosas limitaciones a nivel de anotación y metodología. Por ello, el presente TFM se centrará en los dos métodos de enriquecimiento más utilizados:
+
+* ORA (*Over Representation Analysis*) o Análisis de sobre-representación: Comprueba la sobre-representación estadística de una lista de genes de interés en una lista de referencia.
+
+*	GSEA (*Gene Set Enrichment Analysis*) o Análisis de enriquecimiento de conjuntos de genes: Incorpora los valores de expresión y estadísticos diferenciales de todos los genes de para hacer un test de análisis de significación estadística, con el objetivo de comprobar si los genes correspondientes a ciertas categorías se acumulan en la parte superior o inferior de la lista ordenada por dirección y magnitud del cambio de expresión.
+
+Durante el análisis del presente trabajo, se utilizan los métodos anteriores anotando los genes con Go, KEGG y Reactome. Por tanto, en este informe se presentan seis análisis diferenciados: ORA-GO, ORA-KEGG, ORA-Reactome, GSEA-GO, GSEA-KEGG y GSEA-Reactome.
+
+Por último, se evaluará el uso de un método de tercera generación:
+
+*	SPIA (*Signaling-pathway impact analysis*) o Análisis de Impacto de Vías de Señalización: Evalúa los cambios de expresión génica, considerando la información sobre cómo los genes interactúan dentro de las vías de señalización biológica, para determinar qué vías son importantes en una determinada condición biológica.
+
+
+## Visualización
+
+La visualización de los resultados del análisis permite identificar e interpretar los procesos biológicos enriquecidos en nuestro análisis. Además, muchas de las técnicas de visualización utilizadas permiten minimizar redundancias que frecuentemente aparecen en los resultados de enriquecimiento. La visualización permitirá agrupar procesos y vías similares en categorías funcionales comunes. Los paquetes *clusterProfiler*, *enrichplot*, *Pathview*, *ReactomePA* y *SPIA* contienen algunos de los métodos de visualización más utilizados, entre los que destacan los siguientes:
+
+* *Barplot*: La función barplot() muestra un gráfico de barras para visualizar las categorías enriquecidas. El color representa estadísticos de enriquecimiento (por ejemplo, valores p) y la longitud de la barra respecto el eje de abcisas el número de genes, o proporción respecto al total, anotados en la categoría.
+
+* *Dotplot*: La función dotplot() es similar a la barplot(), pero puede representar una característica más por el tamaño del punto. El color se relaciona con los valores p ajustados del análisis y el tamaño del punto con el número de genes anotados a la categoría. En el eje de abcisas número de genes, o proporción respecto al total, anotados en la categoría.
+
+* *Enrichment Map*: El mapa de enriquecimiento organiza las categorías enriquecidas en una red donde se conectan conjuntos de genes solapados. Los conjuntos de genes que se solapan tienden a agruparse, lo que facilita la identificación de módulos funcionales. Para visualizar mapas de enriquecimiento tenemos diferentes opciones: la función emmaplot(), aplicable en todas las anotaciones utilizadas y la función goplot(), específica para anotaciones en GO. 
+
+* *Category Netplot*: La función cnetplot() representa los vínculos entre genes y categorías biológicas (por ejemplo, términos GO o vías KEGG) en forma de red. El resultado de GSEA también es compatible pero solo se muestran los genes enriquecidos en el núcleo.
+
+* *Upsetplot*: La función upsetplot() es una alternativa al *Category Netplot* para visualizar la asociación compleja entre genes y conjuntos de genes. Esta función destaca el solapamiento de genes entre diferentes categorías.
+
+* *Ridgeline plot*: La función ridgeplot() visualiza las distribuciones de expresión para las categorías obtenidas en el análisis GSEA. Ayuda a los usuarios a interpretar las vías biológicas enriquecidas que derivan de sobreexpresión o infraexpresión de los conjuntos de genes identificados.
+
+* *GSEA plot*: La función gseaplot() (también gseaplot2()) del paquete enrichplot permite representar para el conjunto de genes seleccionado el *Running Enrichment score* en la lista ordenada de acuerdo al análisis GSEA. 
+
+* *Pathview*: La función pathview() del paquete Pathview es una herramienta que permite integrar y visualizar datos de vías biológicas. Los usuarios solo necesitan especificar la vía deseada, en base al análisis de enriquecimiento, y se representa un gráfico con las vistas nativas de KEGG.
+
+* *viewPath*: La función viewPath() del paquete permite representar la red que conecta los genes relacionados con una categoría especificada de Reactome.
+
+* *plotP*: La función plotP genera un gráfico de significación estadística de las vías de señalización biológica obtenidas en el análisis realizado con SPIA. Las líneas oblicuas del gráfico muestran los umbrales correspondientes a regiones de significancia basada en diferentes criterios. Los puntos representados a la derecha de estos umbrales corresponden a catagerías KEGG significativamente enriquecidas. 
+
+
+
+
+# CONSIDERACIONES PREVIAS
+
+Se ha creado un proyecto de RStudio en la carpeta principal de trabajo. Se ha creado la carpeta *Data* donde se ubicará la lista de genes utilizada como punto de partida del análisis y la carpeta *Results* para guardar los archivos generados.<br>
+
+Para ejecutar el código se necesita tener instalado [Bioconductor](https://www.bioconductor.org/install/).<br>
+```{r }
+if (!require("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+```
+
+Además, se necesitarán instalar los siguientes paquetes:
+```{r }
+if (!require(clusterProfiler)) BiocManager::install("clusterProfiler")
+if (!require(pathview)) BiocManager::install("pathview")
+if (!require(enrichplot)) BiocManager::install("enrichplot")
+if (!require(ReactomePA)) BiocManager::install("ReactomePA")
+if (!require(DOSE)) BiocManager::install("DOSE")
+if (!require(SPIA)) BiocManager::install("SPIA")
+if (!require(ggplot2)) install.packages("ggplot2", dep=TRUE)
+if (!require(ggridges)) install.packages("ggridges", dep=TRUE)
+if (!require(ggupset)) install.packages("ggupset", dep=TRUE)
+```
+
+En base al organismo origen de los datos de los genes en evaluación, se deberá descargar el paquete de anotaciones correspondiente. El usuario deberá seleccionar el organismo, teniendo en cuenta el código requerido según la ontología o base de datos utilizada.<br>
+
+GO: Considerar los paquestes actualizados a utilizar en el siguiente enlace: [OrgDb](http://bioconductor.org/packages/release/BiocViews.html#___OrgDb).<br>
+KEGG: Considerar la codificación a utilizar en el siguiente enlace: [KEGG](https://www.genome.jp/kegg/catalog/org_list.html).<br>
+Reactome: Considerar la codificación a utilizar en el siguiente enlace:
+[Reactome](http://bioconductor.org/packages/release/bioc/html/ReactomePA.html)
+
+A continuación definimos unas variables relacionadas con el organismo en estudio según la base de datos de anotaciones.
+```{r }
+#Seleccionamos el organismo relacionado con los datos de partida. En este caso Ratón.
+#Anotación en GO
+organismo_go = "org.Mm.eg.db" #En la aplicación se permitirá seleccionar Humano, ratón y Rata
+BiocManager::install(organismo_go, character.only = TRUE)
+library(organismo_go, character.only = TRUE)
+#Anotación en KEGG
+organismo_kegg = "mmu"
+#Anotación en Reactome
+organismo_reactome="mouse"
+```
+
+Por último, cargamos los paquetes requeridos para el análisis.<br>
+```{r }
+library(clusterProfiler)
+library(enrichplot)
+library(ReactomePA)
+library(ggplot2)
+library(DOSE)
+library(pathview)
+library(SPIA)
+```
+
+
+
+
+# DATOS DE ENTRADA
+
+Los datos de partida de este trabajo son una lista de genes diferencialmente expresados (*topTable*), obtenidos a partir de un estudio de comparación de la expresión génica en células luminales y basales extraídas de glándulas mamarias de ratones vírgenes, gestantes de 18,5 días y lactantes de 2 días. Los datos del estudio están disponibles en Gene Expression Omnibus (GEO) con el número de acceso [GSE60450](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE60450). 
+
+La lista de genes sobre la que se realiza el análisis de significación biológica es la selección de genes obtenida tras realizar el análisis de expresión diferencial con limma-voom entre los grupos gestantes y lactantes: toptab_B.PregVsLac.csv. Obtenida del análisis de expresión diferencial relizado por [Mireia Ferrer et al](https://aspteaching.github.io/Analisis_de_datos_omicos-Ejemplo_2-RNASeq/Workflow_basico_de_RNASeq.html). Esta lista contiene los genes identificados con el identificador ENTREZ en la primera columna y varios parámetros estadísticos obtenidos en el análisis de expresión diferencia para cada gen, relacionados con la diferencia entre los estados “pregnant” y “lactate” en el grupo “Basal”: 
+
+* logFC: logaritmo en base 2 de la magnitud de cambio en la expresión de un gen entre los grupos comparados. Valores positivos se relacionan con genes sobreexpresados y negativos con subexpresados.Es el parámetro relacionado con el impacto biológico del cambio.
+* AveExpr: Nivel promedio de expresión del gen en escala logarítmica en todas las muestras del experimento.
+* t: Estadístico *t-moderados*, similar al estadístico del test *t* de student, pero con un estimador mejorado de la varianza en su denominador.
+* P.Value: Valor p asociado a la comparación realizada.
+* Adj.P.Value : Valor p ajustado para comparaciones múltiples. Existen diferentes tipos de ajuste para controlar la tasa de falsos positivos en comparaciones múltiples. uno de los más populares es el método de Benjamini y Hochberg (BH). Es el parámetro con la significancia estadística del cambio.
+* B: Logaritmo de la probabilidad de que un gen esté diferencialmente expresado frente a la de que no lo esté. A mayor valor positivo más probable es que el gen esté diferencialmente expresado. A mayor valor negativo, más probable es que no lo esté. 
+
+Antes de realizar el análisis, el protocolo requiere la estandarización de la siguiente información de la lista de genes:
+
+- Identificación de los genes: Es importante confirmar que nuestra lista de genes utiliza el identificador único ENTREZID, ya que es uno de los identificadores compatibles con alguna de las funciones utilizadas durante el análisis, por ejemplo la función gseKEGG(), enrichPathway(),gsePathway() o spia(). Además, los identificadores de los genes deben corresponder a la variable de la primera columna de los datos cargados en el sistema. La aplicación en desarrollo permitirá utilizar identificadores ENTREZID, GO y ENSEMBL, y realizará la conversión necesaria con la función bitr() del paquete clusterProfiler para procesar los datos con los identificadores ENTREZID.
+- Variables requeridas en el análisis: En el anáisis GSEA se requiere ordenar la lista de genes en base a unos valores de expresión y estadísticos diferenciales, como sería el caso del logFC y Adj.P.Value. Estas variables deben nombrarse exactamente como están especificadas en los puntos anteriores. Por ejemplo, la columna correspondiente al cambio en la expresión de un gen debe nombrarse logFC, y no log2FoldChange o de otra manera.
+
+Opcionalmente, la aplicación Shiny en desarrollo permitirá transformar los datos de partida de manera automática para cumplir los requerimientos anteriores. También se permitirán cargar los datos de archivos .csv, .txt o .xlsx.  
+
+Cargamos la lista de genes y preparamos los datos.<br>
+```{r }
+df = read.csv("Data/toptab_B.PregVsLac.csv", header=TRUE)
+str(df) #Comprobamos que la tabla es un data frame
+head(df) #Comprobamos los nombres de las diferentes variables
+#En la aplicación se mostrarán los requerimientos de los datos de partida a nivel de identificadores de genes
+#y nombres de los parámetros estadísticos a evaluar.
+#En caso necesario, se realizará la transformación de los identificadores con la función bitr()
+#bitr(geneID, fromType, toType, OrgDb, drop = TRUE)
+#La primera columna debe corresponder a los identificadores de los genes.
+colnames(df)[1]<-"EntrezID" #Llamamos EntrezID a la variable que contiene los EntrezID
+```
+
+
+
+
+# OVER-REPRESENTATION ANALYSIS 
+
+El análisis de sobrerrepresentación (ORA) es un método estadístico que determina si los genes correspondientes a una categoría determinada están sobrerrepresentados en un subconjunto de nuestros datos. Para determinar si alguna categoría está sobrerrepresentada, se determina la probabilidad de tener la proporción observada de genes asociados a esta categoría en nuestro subconjunto respecto a la proporción de genes asociados con la misma categoría en la lista de referencia ("universo").
+
+Para evaluar si alguna categoría está sobrerrepresentada en el subconjunto, se puede utilizar la distribución hipergeométrica. Esto corresponde a realizar el test exacto de Fischer de una cola. A partir de este análisis se obtienen unos valores p estadísticos para cada categoría que deberán ajustarse por un método de comparaciones múltiples (p.adjust) y para el control de la tasa de falsos positivos FDR (valor q).
+
+En este caso, el subconjunto en el que evaluaremos la sobrerrepresentación es una lista de genes obtenida a partir de de la original en la que hemos aplicado unos filtros relacionados con los estadísticos y medidas de cambio de expresión génica obtenidos en el estudio de expresión diferencial.  En el ejemplo, el subconjunto está formado por aquellos genes con un adj.P.val <0.05 y logFC>2 (up-regulated). En la aplicación en desarrollo, el usuario podrá seleccionar el umbral deseado para el análisis, permitiendo realizar el análisis de los genes sobre o subexpresados por separado, o ambos a la vez (abs(logFC)>2)).
+
+Opcionalmente, la aplicación permitirá seleccionar como la lista de genes a evaluar la lista inicial sin filtrar. Dependiendo de la necesidad del análisis, el universo de genes utilizado en el análisis podrá ser la misma topTable inicial o bien todo el genoma del organismo.
+
+Preparamos los datos sobre los que realizaremos el análisis.
+```{r }
+# Generamos la lista de genes de referencia (universo) con la que se comparará nuestra lista
+# En este caso, el universo será la lista de genes original (topTable inicial)
+universe_list <- as.character(df$EntrezID)
+# Eliminamos posibles valores NA 
+universe_list<-na.omit(universe_list)
+# Eliminamos posibles valores duplicados
+universe_list <- universe_list[which(duplicated(universe_list) == F)]
+
+# Otra opción sería utilizar como universo todos los genes del genoma del organismo
+# En ese caso, se requería la siguiente instrución:
+# universe_all_list <- select(org.Mm.eg.db, keys=keys(org.Mm.eg.db), columns="ENTREZID")
+# universe_list <- as.character(universe_all_list$ENTREZID)
+
+# De la lista de genes original, seleccionamos los de interés en base a valor adj.P.val (padj < 0.05)
+# En la aplicación se añadirán selectores para filtrar los datos por adj.P.Val y logFC
+sig_genes_df = subset(df, adj.P.Val < 0.05) 
+# De la lista anterior, extraemos los valores de logFC para filtrar posteriormente
+ora_list <- sig_genes_df$logFC
+# Nombramos el vector anterior con los identificadores
+names(ora_list) <- sig_genes_df$EntrezID
+# omitimos NA values
+ora_list <- na.omit(ora_list)
+# Eliminamos posibles valores duplicados
+ora_list <- ora_list[which(duplicated(names(ora_list)) == F)]
+# Finalmente filtramos por el valor de logFC deseado. En este caso nos centraremos en up-regulated (logFC > 2)
+ora_list <- ora_list[ora_list > 2] 
+```
+
+En el análisis ORA se pueden personalizar algunos parámetros independientemente de la base de datos de anotaciones utilizada. Los más destacados son:
+
+* minGSSize: Número mínimo de genes para cada conjunto de genes (categoría). Si es inferior al establecido, esa categoría no se reporta en los resultados. 
+
+* maxGSize: Nmero máximo de genes para cada conjunto de genes (categoría). Si es superior al establecido, esa categoría no se reporta en los resultados. 
+
+* ont: Ontología GO. Opciones: “BP”, “MF”, “CC” o “ALL”.
+
+* pAdjustMethod: Método de ajuste para comparaciones múltiples: “holm”, “hochberg”, “hommel”, “bonferroni”, “BH”, “BY”, “fdr”, “none”.
+
+* pvalueCutoff: p-valor de corte. Sólo se reportan las categorías con un p-valor inferior al establecido.
+
+* qvalueCutoff: q-valor de corte. Sólo se reportan las categorías con un q-valor inferior al establecido.
+
+
+## Análisis ORA (anotación con GO)
+
+Realizamos el análisis con la función enrichGO(). Se debe indicar en el argumento *gene* el subconjunto de genes en evaluación y en argumento *universe* la lista de genes de referencia. Esta función admite numerosos gene ID. Se pueden consultar con la siguiente función (*keytypes()*). Es importante confirmar que el identificador utilizado en nuestras listas de genes esté soportado por la función y la anotación seleccionada. En nuestro caso seguimos trabajando con ENTREZID. 
+```{r }
+keytypes(org.Mm.eg.db) 
+```
+
+El objeto resultante almacena las categorías GO enriquecidas en el subconjunto de genes, la proporción observada en el subconjunto y en la lista de referencia, y los valores estadísticos que justifican que dichas categorías se encuentran sobrerrepresentadas.
+```{r }
+#Seleccionamos la ontología BP de GO. 
+ora_go <- enrichGO(gene = names(ora_list),
+                      universe = universe_list,
+                      OrgDb = organismo_go, 
+                      keyType = "ENTREZID", #Se podría trabajar también con ID Ensemble
+                      readable = T,
+                      ont = "BP",
+                      pAdjustMethod = "BH",
+                      qvalueCutoff = 0.05)
+```
+
+Como se ha comentado anteriormente, las categorías anotadas en GO están relacionada de manera jerárquica, por lo que un los procesos relacionados con un término padre puede superponerse en gran medida con los de sus hijos. Esto puede producir resultados redundantes, en los que tengamos muchas categorías relacionadas con el mismo proceso biológico. Para solucionar este problema, clusterProfiler implementa un método de simplificación con la función simplify() para reducir las categorías redundantes de GO obtenidas tanto en el análisis ORA como GSEA. Existen otros paquetes que ofrecen funcionalidades similares, e incluso con opciones de visualización avanzadas de las categorías solapadas, como simplifyEnrichment o rrvgo. No obstante, con el objetivo de optimizar recursos en la aplicación y simplificar el análisis, utilizaremos simplify() del paquete clusterProfiler.
+
+En los argumentos del método simplify() se aplica *select_fun* (que puede ser una función definida por el usuario) a la característica *by* para seleccionar un término representativo de entre los términos redundantes (que tienen una similitud mayor que el umbral de corte, *cutoff*). 
+
+```{r }
+ora_go_simplify <- simplify(ora_go, cutoff=0.7, by="p.adjust", select_fun=min)
+```
+
+En las siguientes instrucciones utilizaremos el objeto original del análisis (ora_go) a modo de ejemplo, pero se podría trabajar indistintamente con el original o el simplificado en base al criterio del usuario. 
+
+Podemos guardar los resultados obtenidos del análisis ORA-GO en un archivo csv.
+```{r }
+ora_go_results <- data.frame(ora_go)
+head(ora_go_results)[,2:7]
+write.csv(ora_go_results, "Results/clusterProfiler_ORA_GO.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(ora_go)
+```
+
+Visualización del Barplot:
+```{r }
+barplot(ora_go, 
+        drop = TRUE, 
+        showCategory = 10, 
+        title = "GO Biological Pathways",
+        font.size = 9)
+```
+
+Visualización del Dotplot:
+```{r }
+dotplot(ora_go, showCategory = 10, font.size=9)
+```
+
+Visualización del Enrichment map:
+```{r }
+ora_go_sim <- pairwise_termsim(ora_go)
+emapplot(ora_go_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del GO plot:
+```{r }
+goplot(ora_go, showCategory = 5, cex=0.5)
+```
+
+Visualización del Category Netplot
+```{r }
+cnetplot(ora_go, showCategory=15, color.params =list(foldChange =ora_list))
+```
+
+Visualización del Tree plot
+```{r }
+treeplot(ora_go_sim, showCategory=10, color="pvalue", cluster.params=list(method="ward.D2"))
+```
+
+## Análisis ORA (anotación con KEGG)
+
+Para realizar el análisis ORA con anotación de las vías KEGG utilizaremos la función enrichKEGG(). En este caso es importante confirmar que nuestra lista de genes utiliza el identificador ENTREZID, ya que es uno de los identificadores compatibles con la función enrichKEGG(). En caso de que nuestra lista de genes no esté identificada con ENTREZID, se tendrá que realizar la conversión utilizando la función bitr() de clusterProfiler. 
+
+Como se ha comentado anteriormente, en este trabajo la lista de genes de partida está codificada en ENTREZ ID, por lo que no se requiere de ninguna acción relacionada.
+
+El objeto resultante almacena las vías KEGG enriquecidas en el subconjunto de genes, la proporción observada en el subconjunto y en la lista de referencia, y los valores estadísticos que justifican que dichas categorías se encuentran sobrerrepresentadas.
+
+```{r }
+ora_kegg <- enrichKEGG(gene=names(ora_list), 
+                 universe=universe_list,
+                 organism=organismo_kegg,
+                 pAdjustMethod = "BH",
+                 qvalueCutoff = 0.05, 
+                 keyType = "ncbi-geneid")
+```
+
+Podemos guardar los resultados obtenidos del análisis ORA-KEGG en un archivo csv.
+```{r }
+ora_kegg_results <- data.frame(ora_kegg)
+head(ora_kegg_results)[2:7]
+write.csv(ora_kegg_results, "Results/clusterProfiler_ORA_KEGG.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(ora_kegg)
+```
+
+Visualización del Barplot:
+```{r }
+barplot(ora_kegg, 
+        showCategory = 10, 
+        title = "Enriched Pathways",
+        font.size = 8)
+```
+
+Visualización del Dotplot:
+```{r }
+dotplot(ora_kegg, 
+        showCategory = 10, 
+        title = "Enriched Pathways",
+        font.size = 8)
+```
+
+Visualización del Enrichment map:
+```{r }
+ora_kegg_sim <- pairwise_termsim(ora_kegg)
+emapplot(ora_kegg_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del Category Netplot:
+```{r }
+cnetplot(ora_kegg, showCategory=5, color.params =list(foldChange =ora_list))
+```
+
+Visualización del Pathview: Estas instrucciones crearán diferentes archivos (PNG y PDF) con información de las vías KEGG enriquecidas. El usuario deberá seleccionar qué vía de las obtenidas en el análisis quiere visualizar.
+```{r }
+head(ora_kegg)[,1:2]
+dme <- pathview(gene.data=universe_list, pathway.id=ora_kegg@result$ID[1],  species = organismo_kegg)
+```
+
+También se puede navegar directamente a la página web de KEGG para visualizar la vía del término seleccionado.
+```{r }
+browseKEGG(ora_kegg, ora_kegg@result$ID[1])
+```
+
+![ORA-KEGG Pathway para mmu05150](./mmu05150.pathview.png){width=85%}
+
+
+## Análisis ORA (anotación con Reactome)
+
+Para realizar el análisis ORA con anotación con los términos Reactome utilizaremos la función enrichPathway() del paquete ReactomePA. De nuevo, la función requiere que nuestra lista de genes sea un vector de identificadores ENTREZ. En caso de que nuestra lista de genes no esté identificada con ENTREZ ID, se tendrá que realizar la conversión utilizando la función bitr() de clusterProfiler. 
+
+Como se ha comentado anteriormente, en este trabajo la lista de genes de partida está codificada en ENTREZ ID, por lo que no se requiere de ninguna acción relacionada.
+
+El objeto resultante almacena las vías Reactome enriquecidas en el subconjunto de genes, la proporción observada en el subconjunto y en la lista de referencia, y los valores estadísticos que justifican que dichas categorías se encuentran sobrerrepresentadas.
+
+```{r }
+ora_reactome <- enrichPathway(gene=names(ora_list), 
+                 universe=universe_list,
+                 organism=organismo_reactome,
+                 pAdjustMethod = "BH",
+                 pvalueCutoff = 0.05,
+                 readable = TRUE)
+```
+
+Podemos guardar los resultados obtenidos del análisis ORA-REACTOME en un archivo csv.
+```{r }
+ora_reactome_results <- data.frame(ora_reactome)
+head(ora_reactome_results)[2:7]
+write.csv(ora_reactome_results, "Results/clusterProfiler_ORA_reactome.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(ora_reactome)
+```
+
+Visualización del Barplot:
+```{r }
+barplot(ora_reactome, 
+        showCategory = 10, 
+        title = "Enriched Pathways",
+        font.size = 8)
+```
+
+Visualización del Dotplot:
+```{r }
+dotplot(ora_reactome, 
+        showCategory = 10, 
+        title = "Enriched Pathways",
+        font.size = 8)
+```
+
+Visualización del Enrichment map:
+```{r }
+ora_reactome_sim <- pairwise_termsim(ora_reactome)
+emapplot(ora_reactome_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del Category Netplot:
+```{r }
+cnetplot(ora_reactome, showCategory=5, color.params =list(foldChange =ora_list))
+```
+
+Visualización del viewPathway: Esta función permite visualizar la via Reactome indicada por el usuario.
+```{r }
+head(ora_reactome)[,1:2]
+viewPathway(ora_reactome@result$Description[1], readable=TRUE)
+```
+
+
+
+
+# GENE SET ENRICHMENT ANALYSIS
+
+A diferencia del análisis ORA, el análisis de enriquecimiento de conjunto de genes (GSEA) utiliza todos los genes de la lista de partida. Normalmente, los genes se ordenan en base a valores estadísticos o medidas de diferencia de expresión entre los grupos en evaluación, en nuestro caso logFC, y a continuación, se analiza si las categorías anotadas se distribuyen aleatoriamente por toda la lista de genes o se encuentran principalmente en la parte superior o inferior.
+
+Hay tres elementos claves en el análisis GSEA:
+
+- Cálculo de la puntuación de enriquecimiento (*ES: enrichmentScore*): Esta puntuación representa la magnitud en que una categoría está sobrerrepresentada en la parte superior o inferior de la lista ordenada de genes.
+
+- Estimación del nivel de significación del *ES*: El p-valor del *ES* se calcula mediante una prueba de permutación. 
+
+- Ajuste para pruebas de comparaciones múltiples: El p-valor se corrige de acuerdo al ajuste de pruebas de comparaciones múltiples (p.adjust) y para el control de la tasa de falsos positivos (q-valor).
+
+Preparamos los datos sobre los que realizaremos el análisis.
+
+```{r }
+# Seleccionamos los valores de logFC de toda la lista de genes
+original_gene_list <- df$logFC
+
+# Nombramos el vector anterior con los gene ID
+names(original_gene_list) <- df$EntrezID
+
+# Eliminamos posibles valores NA 
+gsea_list<-na.omit(original_gene_list)
+
+# Eliminamos posibles valores duplicados
+gsea_list <- gsea_list[which(duplicated(names(gsea_list)) == F)]
+
+# Ordenamos la lista en orden decreciente de logFC (requerido en ClusterProfiler)
+gsea_list = sort(gsea_list, decreasing = TRUE)
+```
+
+En el análisis GSEA se pueden configurar una serie de parámetros independientemente de la base de datos de anotaciones utilizada:
+
+* nPerm: Número de permutaciones utilizado en el análisis de significancia de la puntuación *ES* de cada categoría. A mayor número de permutaciones, el resultado obtenido será más exacto pero el análisis requerirá más tiempo de computación. No obstante, por recomendación de la documentación relacionada con esta función, no se suele indicar el número de permutaciones.
+
+* minGSSize: Número mínimo de genes para cada conjunto (categoría). Si es inferior al establecido, esa categoría no se reporta en los resultados.
+
+* maxGSSize: Número máximo de genes para cada conjunto (categoría). Si es superior al establecido, esa categoría no se reporta en los resultados.
+
+* pAdjustMethod: Ajuste del p-valor por el método de comparaciones múltiples seleccionado: “holm”, “hochberg”, “hommel”, “bonferroni”, “BH”, “BY”, “fdr”, “none”.
+
+* pvalueCutoff: p-valor de corte. Sólo se reportan las categorías con un p-valor inferior al establecido.
+
+* eps: Este parámetro establece el límite inferior para calcular el p-valor. Por defecto es 1e-10, pero se recomienda indicar 0 porque algunas vías presentan p-valores inferiores.
+
+
+## Análisis GSEA (anotación con GO)
+
+Realizamos el análisis con la función gseGO(). Seleccionamos toda nuestra lista de genes y configuramos diferentes parámetros del análisis. La aplicación Shiny permitirá configurar alguno de estos parámetros.
+
+El objeto resultante almacena las categorías GO enriquecidas, la cuenta de genes anotados en ellas y los valores estadísticos que justifican que dichas categorías se encuentran significativamente enriquecidas.
+```{r }
+#Seleccionamos la ontología BP de GO. Opciones: “BP”, “MF”, “CC” o “ALL”
+gsea_go <- gseGO(geneList=gsea_list, 
+             ont ="BP", 
+             keyType = "ENTREZID",
+             minGSSize = 20,
+             pvalueCutoff = 0.05, 
+             verbose =FALSE, 
+             eps=0,
+             OrgDb = organismo_go, 
+             pAdjustMethod = "BH")
+```
+
+De la misma manera que se ha realizado para el análisis ORA, la función simplify() nos permite reducir las categorías redundantes de GO en el análisis GSEA.
+
+```{r }
+gsea_go_simplify <- simplify(gsea_go, cutoff=0.7, by="p.adjust", select_fun=min)
+```
+
+Podemos guardar los resultados obtenidos del análisis GSEA-GO en un archivo csv.
+```{r }
+gsea_go_results <- data.frame(gsea_go)
+head(gsea_go_results)[2:8]
+write.csv(gsea_go_results, "Results/clusterProfiler_GSEA_GO.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(gsea_go)
+```
+
+Visualización del Dotplot.
+```{r }
+dotplot(gsea_go, showCategory=10, font.size=8)
+# También podemos separar las categorías que provienen de sobre/subexpresión 
+dotplot(gsea_go, showCategory=8, font.size=8, split=".sign") + facet_grid(.~.sign)
+```
+
+Visualización del Enrichment Map:
+```{r }
+gsea_go_sim <- pairwise_termsim(gsea_go)
+emapplot(gsea_go_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del Go plot:
+```{r }
+goplot(gsea_go, showCategory=10, cex=0.5)
+```
+
+Visualización del Category Netplot:
+```{r }
+cnetplot(gsea_go, color.params = list(foldChange = gsea_list), showCategory = 10)
+```
+
+Visualización del Ridgeplot:
+```{r }
+ridgeplot(gsea_go, showCategory = 10, label_format = 50, fill="p.adjust")+labs(x = "enrichment distribution")
+```
+
+Visualización del GSEA plot:
+```{r }
+# El usuario deberá seleccionar el conjunto de genes a evaluar. 
+# En el ejemplo utilizamos el primer conjunto de genes.
+gseaplot(gsea_go, by = "all", title = gsea_go$Description[1], geneSetID = 1)
+```
+
+
+## Análisis GSEA (anotación con KEGG)
+
+Para realizar el análisis GSEA con anotación en KEGG utilizaremos la función gseKEGG().
+Es importante confirmar que nuestra lista de genes utiliza el identificador ENTREZID, ya que es uno de los identificadores compatibles con la función gseKEGG. En caso de que nuestra lista de genes no esté identificada con ENTREZID, se tendrá que realizar la conversión utilizando la función bitr() de clusterProfiler. 
+Como se ha comentado anteriormente, en este trabajo la lista de genes de partida está codificada en ENTREZ ID, por lo que no se requiere de ninguna acción relacionada.
+
+El objeto resultante almacena las vías KEGG enriquecidas, la cuenta de genes anotados en ellas y los valores estadísticos que justifican que dichas vías se encuentran significativamente enriquecidas.
+```{r }
+gsea_kegg <- gseKEGG(geneList = gsea_list,
+               organism     = organismo_kegg,
+               minGSSize    = 20,
+               pvalueCutoff = 0.05,
+               eps=0,
+               pAdjustMethod = "BH",
+               verbose= FALSE,
+               keyType       = "ncbi-geneid") #Es el EntrezID
+```
+
+Podemos guardar los resultados obtenidos del análisis GSEA-KEGG en un archivo csv.
+```{r }
+gsea_kegg_results <- data.frame(gsea_kegg)
+head(gsea_kegg_results)[2:8]
+write.csv(gsea_kegg_results, "Results/clusterProfiler_GSEA_KEGG.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(gsea_kegg)
+```
+
+Visualización del Dotplot.
+```{r }
+dotplot(gsea_kegg, showCategory = 10, font.size=8, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+```
+
+Visualización del Enrichment Map:
+```{r }
+gsea_kegg_sim <- pairwise_termsim(gsea_kegg)
+emapplot(gsea_kegg_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del Category Netplot:
+```{r }
+cnetplot(gsea_kegg, color.params = list(foldChange = gsea_list), showCategory = 5)
+```
+
+Visualización del Ridge plot:
+```{r }
+ridgeplot(gsea_kegg, showCategory = 10, label_format = 50, fill="p.adjust")+labs(x = "enrichment distribution")
+```
+
+Visualización del GSEA plot:
+```{r }
+# El usuario deberá seleccionar el conjunto de genes a evaluar. 
+# En el ejemplo utilizamos el primer conjunto de genes.
+gseaplot(gsea_kegg, by = "all", title = gsea_kegg$Description[1], geneSetID = 1)
+```
+
+Visualización del Pathview: Estas instrucciones crearán diferentes archivos con información de las vías KEGG enriquecidas. El usuario deberá seleccionar qué vía de las obtenidas en el análisis quiere visualizar. 
+```{r }
+names(gsea_kegg@geneSets)[1]
+dme <- pathview(gene.data=gsea_list, pathway.id="mmu03010", species = organismo_kegg)
+#En la aplicación se podría crear una lista de selección en base a los datos del análisis gsea_kegg@geneSets
+dme <- pathview(gene.data=gsea_list, pathway.id=gsea_kegg@result$ID[1], species = organismo_kegg)
+```
+
+También podríamos navegar directamente a la página web de KEGG para visualizar la vía del término seleccionado.
+```{r }
+browseKEGG(gsea_kegg, gsea_kegg@result$ID[1])
+```
+
+![GSEA-KEGG Pathway para mmu00010](./mmu03010.pathview.png){width=85%}
+
+
+## Análisis GSEA (anotación con Reactome)
+
+Para realizar el análisis GSEA con anotación con los términos Reactome utilizaremos la función gsePathway() del paquete ReactomePA. De nuevo, la función requiere que nuestra lista de genes sea un vector de identificadores ENTREZID. En caso de que nuestra lista de genes no esté identificada con ENTREZID, se tendrá que realizar la conversión utilizando la función bitr() de clusterProfiler. 
+
+Como se ha comentado anteriormente, en este trabajo la lista de genes de partida está codificada en ENTREZ ID, por lo que no se requiere de ninguna acción relacionada.
+
+El objeto resultante almacena las vías Reactome enriquecidas, la cuenta de genes anotados en ellas y los valores estadísticos que justifican que dichas vías se encuentran significativamente enriquecidas..
+
+```{r }
+gsea_reactome <- gsePathway(gene=gsea_list,
+                            organism = organismo_reactome,
+                            minGSSize = 20,
+                            pvalueCutoff = 0.2,
+                            eps=0,
+                            pAdjustMethod = "BH",
+                            verbose= FALSE)
+```
+
+Podemos guardar los resultados obtenidos del análisis GSEA-REACTOME en un archivo csv.
+```{r }
+gsea_reactome_results <- data.frame(gsea_reactome)
+head(gsea_reactome_results)[2:7]
+write.csv(gsea_reactome_results, "Results/clusterProfiler_GSEA_reactome.csv")
+```
+
+Visualización del Upset plot:
+```{r }
+upsetplot(gsea_reactome)
+```
+
+Visualización del Dotplot.
+```{r }
+dotplot(gsea_reactome, showCategory = 5, font.size=8, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+```
+
+Visualización del Enrichment Map:
+```{r }
+gsea_reactome_sim <- pairwise_termsim(gsea_reactome)
+emapplot(gsea_reactome_sim, showCategory=10, color="pvalue", cluster.params=list(cluster=TRUE, legend=TRUE))
+```
+
+Visualización del Category Netplot:
+```{r }
+cnetplot(gsea_reactome, color.params = list(foldChange = universe_list), showCategory = 5)
+```
+
+Visualización del Ridge plot:
+```{r }
+ridgeplot(gsea_reactome, showCategory = 10, label_format = 50, fill="p.adjust")+labs(x = "enrichment distribution")
+```
+
+Visualización del GSEA plot:
+```{r }
+# El usuario deberá seleccionar el conjunto de genes a evaluar. 
+# En el ejemplo utilizamos el primer conjunto de genes.
+gseaplot(gsea_reactome, by = "all", title = gsea_reactome$Description[1], geneSetID = 1)
+```
+
+Visualización del viewPathway: Esta función permite visualizar la via Reactome indicada por el usuario.
+```{r }
+viewPathway(gsea_reactome@result$Description[1], organism="mouse")
+```
+
+
+# SPIA (Signaling-Pathway Impact Analysis)
+
+El análisis de Impacto de Vías de Señalización (SPIA) es un método de análisis de enriquecimiento basado en la topología de las vías de señalización. A diferencia de los métodos anteriores, SPIA integra los datos de expresión diferencial con la topología de las vías para identificar las categorías afectadas. Es decir, el método SPIA no solo se considera los datos de expresión diferencial de la lista de genes de partida, sino también la interconexión entre los genes y su posición relativa en la vía. 
+
+El resultado del análisis SPIA es una tabla que muestra las vías significativamente desreguladas basadas en la sobre-representación y la acumulación de perturbaciones en la señalización. 
+
+Para utilizar el método SPIA partiremos de los resultados obtenidos en un estudio de expresión diferencial, en el ejemplo, nuestra topTable inicial. El análisis requiere extraer de esta matriz los valores que definen el cambio de expresión génica de los genes seleccionados (logFC) y nombrar los genes con identificador ENTREZID. El análisis evaluará la sobrerepresentación de las vías relacionadas con los genes seleccionados respecto a una lista de referencia.
+
+La lista de genes de referencia también debe utilizar identificadores ENTREZID. Sería equivalente a la lista definida como universo en el análisis ORA. En base a la necesidad del análisis, la lista de referencia puede ser la lista de genes de la plataforma utilizada en el experimento, lo que podríamos asignar al genoma del organismo, o la propia TopTable inicial. En nuestro caso, utilizaremos la topTable inicial. 
+
+```{r }
+all_spia <- as.character(df$EntrezID)
+# Eliminamos posibles valores NA 
+all_spia<-na.omit(all_spia)
+# Eliminamos posibles valores duplicados
+all_spia <- all_spia[which(duplicated(all_spia) == F)]
+```
+
+A continuación, seleccionamos la lista de genes para analizar. En este caso, filtramos la topTable inicial en base al umbral de *adj.P.Val* y *logFC* seleccionado por el usuario. 
+
+```{r }
+# De la lista de genes original, seleccionamos los de interés en base a valor adj.P.val (padj < 0.05)
+# En la aplicación se añadirán selectores para filtrar los datos
+sig_genes_spia = subset(df, adj.P.Val < 0.05) 
+# De la lista anterior, extraemos los valores de logFC para filtrar posteriormente
+genes_spia <- sig_genes_spia$logFC
+# Nombramos el vector anterior con los identificadores
+names(genes_spia) <- sig_genes_spia$EntrezID
+# omitimos NA values
+genes_spia <- na.omit(genes_spia)
+# Eliminamos posibles valores duplicados
+genes_spia <- genes_spia[which(duplicated(names(genes_spia)) == F)]
+# Finalmente filtramos por el valor de logFC deseado. En este caso nos centraremos en los genes up/down-regulated
+# abs(logFC) > 2
+genes_spia <- genes_spia[abs(genes_spia) > 2]
+```
+
+Realizamos el análisis con la función spia() del paquete SPIA. Se debe indicar en el argumento *de* el vector de los genes en evaluación con los resultados de expresión génica (logFC) y en argumento *all* la lista de genes de referencia. Como se ha comentado anteriormente, esta función sólo admite la identificción en ENTREZID.
+
+Uno de los parámetros configurables en el análisis es el número de iteraciones bootstrap *nB*. Suele ser mayor a 100, recomendando un valor de 2000. Con el objetivo de reducir el tiempo de procesado, en el ejemplo se utilizará un valor de 100.
+
+El objeto resultante almacena las categorías KEGG enriquecidas en el subconjunto de genes. La tabla de resultados muestra la siguiente información para cada vía:
+
+* pSize: el número de genes en la vía.
+
+* NDE: el número de genes diferencialmente expresados en cada categoría.
+
+* tA: la acumulación total observada de perturbaciones en la vía.
+
+* pNDE: la probabilidad de observar al menos NDE genes en la vía utilizando un modelo hipergeométrico (similar a ORA).
+
+* pPERT: la probabilidad de observar una acumulación total de perturbaciones igual a tA de manera aleatoria.
+
+* pG: el valor p obtenido combinando pNDE y pPERT.
+
+* pGFdr y pGFWER son los valores p globales ajustados FDR y Bonferroni, respectivamente.
+
+* Status: indica la dirección en la que se perturba la vía (activada o inhibida).
+
+* KEGGLINK proporciona un enlace web al sitio web de KEGG que muestra la ruta de la vía.
+
+```{r }
+spia_kegg <- spia(de=genes_spia, all=all_spia, nB=100, organism=organismo_kegg, verbose = FALSE)
+```
+
+Podemos guardar los resultados obtenidos del análisis SPIA en un archivo csv.
+```{r }
+spia_kegg_results <- data.frame(spia_kegg)
+head(spia_kegg_results)[,1:6]
+head(spia_kegg_results)[,7:11]
+head(spia_kegg_results)[,12]
+write.csv(spia_kegg_results, "Results/SPIA.csv")
+```
+
+Visualización del PlotP. 
+
+Se debe definir el parámetro *threshold*, un valor numérico entre 0 y 1 utilizado como umbral de significación de la categoría. Normalmente se utiliza un valor de 0.05.
+```{r, error=TRUE}
+#Utilizando la función integrada en SPIA plotP obtenemos el siguiente error, que parece ser un fallo de programación de la función:
+#Error in if (sum(oky) > 0) { : missing value where TRUE/FALSE needed
+
+#Con el objetivo de resolver el error se modifica ligeramente el código base de la función plotP() encontada en https://rdrr.io/bioc/SPIA/src/R/plotP.R
+
+getP2<-function(pG,combine="fisher"){
+#given a pG returns two equal p-values such as   combfunc(p1,p2)=pG
+ if(combine=="fisher"){
+ch=qchisq(pG,4,lower.tail = FALSE)
+return(sqrt(exp(-ch/2)))
+}
+
+ if(combine=="norminv"){
+  return(pnorm(qnorm(pG)*sqrt(2)/2))
+ }
+}
+
+plotP2<-function(x,threshold=0.05){
+
+if(class(x)!="data.frame" | dim(x)[1]<1 | !all(c("ID","pNDE","pPERT","pG","pGFdr","pGFWER")%in%names(x)))
+{
+ stop("plotP can be applied only to a dataframe produced by spia function!!!") 
+}
+
+
+if(threshold<x[1,"pGFdr"]){
+msg<-paste("The threshold value should be",x[1,"pGFdr"],"or higher!!!");
+ stop(msg);
+}
+
+ pb<-x[,"pPERT"]
+ ph<-x[,"pNDE"]
+ 
+ #determine what combine method was used to convert ph and pb into pG
+ combinemethod=ifelse(sum(combfunc(pb,ph,"fisher")==x$pG)>sum(combfunc(pb,ph,"norminv")==x$pG),"fisher","norminv")
+ 
+ 
+ okx<-(ph<1e-6)
+ oky<-(pb<1e-6)
+
+ ph[ph<1e-6]<-1e-6
+ pb[pb<1e-6]<-1e-6
+
+ plot(-log(ph),-log(pb),xlim=c(0,max(c(-log(ph),-log(pb))+1,na.rm=TRUE)),
+  ylim=c(0,max(c(-log(ph),-log(pb)+1),na.rm=TRUE)),pch=19,main="SPIA two-way evidence plot",cex=1.5,
+  xlab="-log(P NDE)",ylab="-log(P PERT)")
+ tr<-threshold/dim(na.omit(x))[1]
+ abline(v=-log(tr),lwd=1,col="red",lty=2)
+ abline(h=-log(tr),lwd=1,col="red",lty=2)
+ 
+ if(combinemethod=="fisher"){
+ points(c(0,-log(getP2(tr,"fisher")^2)),c(-log(getP2(tr,"fisher")^2),0),col="red",lwd=2,cex=0.7,type="l")
+ }else{
+ somep1=exp(seq(from=min(log(ph)),to=max(log(ph)),length=200))
+ somep2=pnorm(qnorm(tr)*sqrt(2)-qnorm(somep1))
+ points(-log(somep1),-log(somep2),col="red",lwd=2,cex=0.7,type="l") 
+ }
+ 
+ oks<-x[,"pGFWER"]<=threshold
+ trold=tr
+ tr<-max(x[,"pG"][x[,"pGFdr"]<=threshold])
+ if(tr<=trold){tr=trold*1.03}
+ 
+ if(combinemethod=="fisher"){
+ points(c(0,-log(getP2(tr,"fisher")^2)),c(-log(getP2(tr,"fisher")^2),0),col="blue",lwd=2,cex=0.7,type="l")
+  }else{
+ somep1=exp(seq(from=min(log(ph)),to=max(log(ph)),length=200))
+ somep2=pnorm(qnorm(tr)*sqrt(2)-qnorm(somep1))
+ points(-log(somep1),-log(somep2),col="blue",lwd=2,cex=0.7,type="l") 
+ }
+
+ abline(v=-log(tr),lwd=1,col="blue",lty=2)
+ abline(h=-log(tr),lwd=1,col="blue",lty=2)
+ text(-log(ph)[oks]+0.70,-log(pb)[oks],labels=as.vector(x$ID)[oks],cex=0.65)
+ oks2<-x[,"pGFdr"]<=threshold
+ points(-log(ph)[oks2],-log(pb)[oks2],pch=19,col="blue",cex=1.5)
+ points(-log(ph)[oks],-log(pb)[oks],pch=19,col="red",cex=1.5)
+
+ text(-log(ph)[oks2]+0.70,-log(pb)[oks2],labels=as.vector(x$ID)[oks2],cex=0.65)
+ 
+if (sum(okx) > 0) {
+  points(-log(ph)[okx] - 0.12, -log(pb)[okx], pch = "|", col = "black", cex = 1.5)
+}
+if (sum(!is.na(oky) & oky > 0)) { #Se utiliza la función is.na() para verificar si oky tiene valores NA 
+  points(-log(ph)[oky[!is.na(oky) & oky > 0]], -log(pb)[oky[!is.na(oky) & oky > 0]] - 0.12, pch = "_", col = "black", cex = 1.5)
+}
+
+}
+
+plotP2(spia_kegg, threshold=0.05)
+```
+
+Visualización las categorías KEGG. Podemos navegar directamente a la página web de KEGG para visualizar la vía del término seleccionado.
+```{r }
+pathway_selected<-1 #A seleccionar por el usuario. En este caso seleccionamos la primera.
+browseURL(spia_kegg[pathway_selected, 12])
+```
+
+![SPIA-KEGG Pathway para 05150](./spia05150.PNG){width=85%}
+
+
+
+
+# REFERENCIAS
+
+El código presentado en este trabajo proviene de la revisión, evaluación e implementación de diferentes fuentes bibliográficas:
+
+- [Ten Years of Pathway Analysis: Current Approaches and Outstanding Challenges](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002375)
+
+- [Statistical analysis and visualization of functional profiles for genes and gene clusters](http://www.bioconductor.org/packages/release/bioc/vignettes/clusterProfiler/inst/doc/clusterProfiler.html)
+
+- [Functional Analysis for RNA-seq](https://hbctraining.github.io/DGE_workshop_salmon/lessons/functional_analysis_2019.html)
+
+- [Seamless navigation through combined results of set- & network-based enrichment analysis](http://bioconductor.org/packages/release/bioc/vignettes/EnrichmentBrowser/inst/doc/EnrichmentBrowser.pdf)
+
+- [Gene Set Enrichment Analysis with ClusterProfiler](https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/)
+
+- [Biomedical Knowledge Mining using GOSemSim and clusterProfiler](https://yulab-smu.top/biomedical-knowledge-mining-book/index.html)
+
+- [SPIA (Signaling Pathway Impact Analysis)](https://hbctraining.github.io/DGE_workshop_salmon/lessons/pathway_topology.html)
+
+- [ReactomePA](https://www.bioconductor.org/packages/release/bioc/manuals/ReactomePA/man/ReactomePA.pdf)
+
+
+
+# VERSIONES
+
+Finalmente, se reportan las versiones de los paquetes utilizados en el informe:
+```{r }
+packageVersion("clusterProfiler")
+packageVersion("enrichplot")
+packageVersion("ReactomePA")
+packageVersion("ggplot2")
+packageVersion("DOSE")
+packageVersion("pathview")
+packageVersion("SPIA")
+packageVersion(org.Mm.eg.db)
+packageVersion(org.Hs.eg.db)
+packageVersion(org.Rn.eg.db)
+```
