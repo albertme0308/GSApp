@@ -4,7 +4,8 @@ packages <- c("shiny",
               "shinydashboard",
               "ggplot2",
               "ggridges",
-              "ggridges",
+              "ggnewscale",
+              "ggupset",
               "openxlsx",
               "rmarkdown",
               "clusterProfiler",
@@ -24,9 +25,9 @@ for (package in packages) {
     if(package %in% c("clusterProfiler","enrichplot","ReactomePA","DOSE","pathview","SPIA","org.Hs.eg.db","org.Mm.eg.db","org.Rn.eg.db")){
       if (!requireNamespace("BiocManager", quietly = TRUE))
         install.packages("BiocManager")
-      BiocManager::install(package)
+      BiocManager::install(package, dependencies = TRUE)
     }else{
-      install.packages(package)
+      install.packages(package,dependencies = TRUE)
     }
   }
 }
